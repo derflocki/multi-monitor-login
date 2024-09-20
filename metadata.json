@@ -1,0 +1,8 @@
+{
+  "name": "Multi Monitor Login Window",
+  "description": "Put The Login Window on all Monitors",
+  "uuid": "multi-monitor-login@derflocki.github.com",
+  "shell-version": [
+    "46"
+  ]
+}
