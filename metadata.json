@@ -4,5 +4,9 @@
   "uuid": "multi-monitor-login@derflocki.github.com",
   "shell-version": [
     "46"
+  ],
+  "session-modes": [
+    "user",
+    "unlock-dialog"
   ]
 }
