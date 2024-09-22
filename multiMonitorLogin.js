@@ -96,10 +96,12 @@ const MultiMonitorLogin = class {
     updateActors(current, last) {
         console.log("multi-monitor-login@derflocki.github.com: New Monitor " + JSON.stringify(current));
 
+        console.log("looking for  actor: [\"unlock-dialog\", \"login-dialog\"] in " + global.stage);
         let actor = this.findStyleClassRecursive(global.stage, ["unlock-dialog", "login-dialog"]);
         if(!actor) {
             return;
         }
+        console.log("got an actor: " + actor);
         this.moveActor(actor, current);
         //The Lock screen
         //Main.screenShield: https://github.com/GNOME/gnome-shell/blob/main/js/ui/screenShield.js
@@ -118,16 +120,16 @@ const MultiMonitorLogin = class {
      * @param {array} styleClasses
      */
     findStyleClassRecursive(rootActor, styleClasses) {
-        console.log("checking actor: " + rootActor);
-        console.log("checking actor.styleClass: " + rootActor.styleClass);
+        //console.log("checking actor: " + rootActor);
+        //console.log("checking actor.styleClass: " + rootActor.styleClass);
         if(styleClasses.includes(rootActor.styleClass)) {
             return rootActor;
         }
         let actor = null;
         let children = rootActor.get_children();
-        console.log("checking actor.children.length: " + children.length);
+        //console.log("checking actor.children.length: " + children.length);
         for(let i=0; i < children.length; i++) {
-            console.log("checking child: " + i);
+            //console.log("checking child: " + i);
             actor = this.findStyleClassRecursive(children[i], styleClasses);
             if(actor) {
                 return actor;
@@ -136,9 +138,10 @@ const MultiMonitorLogin = class {
         return null;
     }
     moveActor(_dialog, monitor) {
-        console.log("multi-monitor-login@derflocki.github.com: _dialog: " + Main.screenShield._dialog);
-        _dialog.get_children().forEach((child) => {
-            console.log("multi-monitor-login@derflocki.github.com: _dialog.child: " + child);
+        console.log("multi-monitor-login@derflocki.github.com: _dialog: " + _dialog);
+        let children =  _dialog.get_children();
+        [_dialog, ...children].forEach((child) => {
+            console.log("multi-monitor-login@derflocki.github.com: checking constraints: " + child);
             child.get_constraints().forEach((constraint) => {
                 //constraint: https://github.com/GNOME/gnome-shell/blob/main/js/ui/layout.js#L39
                 /** @type {ClutterConstraint}*/

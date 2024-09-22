@@ -1,5 +1,6 @@
 ### GNOMEShellExtension template
 # Ignored files for GNOME extension git repository
 
+.idea
 *.zip
 

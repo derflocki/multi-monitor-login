@@ -6,7 +6,7 @@
     "46"
   ],
   "session-modes": [
-    "user",
+    "gdm",
     "unlock-dialog"
   ]
 }
