@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+    <schema id="org.gnome.shell.extensions.multi-monitor-login" path="/org/gnome/shell/extensions/multi-monitor-login/">
+        <key name="monitor-id" type="i">
+            <default>0</default>
+        </key>
+        <key name="monitor-shortcut-cycle" type="as">
+            <default>["&lt;Control&gt;a"]</default>
+            <summary>Cycle Monitors</summary>
+        </key>
+        <key name="monitor-shortcut-1" type="as">
+            <default>["&lt;Control&gt;1"]</default>
+            <summary>Switch to Monitor 1</summary>
+        </key>
+        <key name="monitor-shortcut-2" type="as">
+            <default>["&lt;Control&gt;2"]</default>
+            <summary>Switch to Monitor 2</summary>
+        </key>
+        <key name="monitor-shortcut-3" type="as">
+            <default>["&lt;Control&gt;3"]</default>
+            <summary>Switch to Monitor 3</summary>
+        </key>
+        <key name="monitor-shortcut-4" type="as">
+            <default>["&lt;Control&gt;4"]</default>
+            <summary>Switch to Monitor 4</summary>
+        </key>
+        <key name="monitor-shortcut-5" type="as">
+            <default>["&lt;Control&gt;5"]</default>
+            <summary>Switch to Monitor 5</summary>
+        </key>
+        <key name="monitor-shortcut-6" type="as">
+            <default>["&lt;Control&gt;6"]</default>
+            <summary>Switch to Monitor 6</summary>
+        </key>
+        <key name="monitor-shortcut-7" type="as">
+            <default>["&lt;Control&gt;7"]</default>
+            <summary>Switch to Monitor 7</summary>
+        </key>
+        <key name="monitor-shortcut-8" type="as">
+            <default>["&lt;Control&gt;8"]</default>
+            <summary>Switch to Monitor 8</summary>
+        </key>
+        <key name="monitor-shortcut-9" type="as">
+            <default>["&lt;Control&gt;9"]</default>
+            <summary>Switch to Monitor 9</summary>
+        </key>
+    </schema>
+</schemalist>

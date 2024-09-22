@@ -1,7 +1,8 @@
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
-//import {Monitor} from 'resource:///org/gnome/shell/ui/layout.js';
+import Meta from 'gi://Meta';
+import Shell from 'gi://Shell';
 import {getPointerWatcher} from 'resource:///org/gnome/shell/ui/pointerWatcher.js';
-
+import * as Layout from 'resource:///org/gnome/shell/ui/layout.js';
 export {MultiMonitorLogin};
 
 const MultiMonitorLogin = class {
@@ -16,9 +17,13 @@ const MultiMonitorLogin = class {
      * @property {int} geometry_scale - Indicates whether the Wisdom component is present.
      */
     /** @type {Monitor}*/
-    lastMonitor = {index: -1, x: 0, y: 0, width: 0, height: 0, geometry_scale: 0};
+    lastMonitorIndex = -1;
 
-    pointerWatcherRef;
+    //track Mouse
+    pointerWatcherRef = null;
+
+    //lastFoundActor
+    actor = null;
 
     /**
      *
@@ -30,24 +35,9 @@ const MultiMonitorLogin = class {
         /** @type {Monitor}*/
         let current = this.getMonitorAtPosition(mouse_x, mouse_y);
         if (!current) {
-            return;
+            return -1;
         }
-        //are we on another monitor?
-        if ((current.x === this.lastMonitor.x) &&
-            (current.y === this.lastMonitor.y) &&
-            (current.width === this.lastMonitor.width) &&
-            (current.height === this.lastMonitor.height) &&
-            (current.index === this.lastMonitor.index)
-        ) {
-            return;
-        }
-        console.log("New Monitor!!!");
-        console.log(JSON.stringify(current));
-        console.log(JSON.stringify(this.lastMonitor));
-
-        //move the relevant actor ot the current monitor
-        this.updateActors(current, this.lastMonitor);
-        this.lastMonitor = current;
+        return current.index;
     };
 
     /**
@@ -58,8 +48,8 @@ const MultiMonitorLogin = class {
      */
     getMonitorAtPosition(mouse_x, mouse_y) {
         let monitor = Main.layoutManager.monitors.filter(m => {
-            return (m.x < mouse_x) && (mouse_x < m.x + m.width) &&
-                (m.y < mouse_y) && (mouse_y < m.y + m.height);
+            return (m.x <= mouse_x) && (mouse_x <= m.x + m.width) &&
+                (m.y <= mouse_y) && (mouse_y <= m.y + m.height);
         });
         if (monitor.length == 1) {
             return monitor[0];
@@ -67,20 +57,57 @@ const MultiMonitorLogin = class {
         return undefined;
     }
 
-    enable() {
-        this.lastMonitor = {x: 0, y: 0, width: 0, height: 0};
+    enable(settings) {
+        settings.connect('changed', this._changed.bind(this))
+        this.lastMonitorIndex = settings.get_int('monitor-id');
         console.log("multi-monitor-login@derflocki.github.com enable");
         let pointerWatcher = getPointerWatcher();
-        this.pointerWatcherRef = pointerWatcher.addWatch(100, (x, y) => {
-            this._trackMouse(x, y);
+        this.pointerWatcherRef = pointerWatcher.addWatch(500, (x, y) => {
+            let current = this._trackMouse(x, y);
+            //are we on another monitor?
+            if (
+                (current === this.lastMonitorIndex) || (current === -1)
+            ) {
+                return;
+            }
+            settings.set_int('monitor-id', current);
         });
+        this.addKeybinding(settings);
         console.log("multi-monitor-login@derflocki.github.com enable complete");
+    }
+    addKeybinding(settings) {
+        //add the cycle keybinding
+        Main.wm.addKeybinding('monitor-shortcut-cycle',
+            settings,
+            Meta.KeyBindingFlags.IGNORE_AUTOREPEAT,
+            Shell.ActionMode.ALL,
+            () => {
+                let nextMonitor = (this.lastMonitorIndex + 1) % Main.layoutManager.monitors.length;
+                //console.log("multi-monitor-login@derflocki.github.com: currentMonitor: " + this.lastMonitorIndex);
+                //console.log("multi-monitor-login@derflocki.github.com: nextMonitor: " + nextMonitor);
+                settings.set_int('monitor-id', nextMonitor);
+            }
+        );
+        for(let i= 1; i <= 9; i++) {
+            //console.log("multi-monitor-login@derflocki.github.com: 'monitor-shortcut-" + i + "'");
+            Main.wm.addKeybinding('monitor-shortcut-' + i,
+                settings,
+                Meta.KeyBindingFlags.IGNORE_AUTOREPEAT,
+                Shell.ActionMode.ALL,
+                () => settings.set_int('monitor-id', i-1)
+            );
+        }
     }
 
     /**
      * This extension moves the unlock dialog to the Monitor the user clicks
      */
     disable() {
+        Main.wm.removeKeybinding('monitor-shortcut-cycle');
+        for(let i= 1; i <= 9; i++) {
+            Main.wm.removeKeybinding('monitor-shortcut-' + i);
+        }
+        this.actor = null;
         console.log("multi-monitor-login@derflocki.github.com disable");
         if (this.pointerWatcherRef) {
             this.pointerWatcherRef.remove();
@@ -93,25 +120,17 @@ const MultiMonitorLogin = class {
      * @param {Monitor} current - The title of the book.
      * @param {Monitor} last - The author of the book.
      */
-    updateActors(current, last) {
-        console.log("multi-monitor-login@derflocki.github.com: New Monitor " + JSON.stringify(current));
-
-        console.log("looking for  actor: [\"unlock-dialog\", \"login-dialog\"] in " + global.stage);
-        let actor = this.findStyleClassRecursive(global.stage, ["unlock-dialog", "login-dialog"]);
-        if(!actor) {
-            return;
+    updateActors(monitorIndex) {
+        if(this.actor === null) {
+            console.log("looking for  actor: [\"unlock-dialog\", \"login-dialog\"] in " + global.stage);
+            let actor = this.findStyleClassRecursive(global.stage, ["unlock-dialog", "login-dialog"]);
+            if (!actor) {
+                return;
+            }
+            console.log("got an actor: " + actor);
+            this.actor = actor;
         }
-        console.log("got an actor: " + actor);
-        this.moveActor(actor, current);
-        //The Lock screen
-        //Main.screenShield: https://github.com/GNOME/gnome-shell/blob/main/js/ui/screenShield.js
-        //if ((Main.screenShield && Main.screenShield._dialog)) {
-        //    //Main.screenShield._dialog: https://github.com/GNOME/gnome-shell/blob/main/js/ui/unlockDialog.js
-        //    this.moveActor(Main.screenShield._dialog, current)
-        //}
-        //styleClass: "unlock-dialog"
-        //styleClass: "login-dialog"
-        //global.stage
+        this.moveActor(this.actor, monitorIndex);
     }
 
     /**
@@ -137,19 +156,29 @@ const MultiMonitorLogin = class {
         }
         return null;
     }
-    moveActor(_dialog, monitor) {
-        console.log("multi-monitor-login@derflocki.github.com: _dialog: " + _dialog);
+    moveActor(_dialog, monitorIndex) {
+        if((monitorIndex >= Main.layoutManager.monitors.length) || (monitorIndex < 0)) {
+            console.log("multi-monitor-login@derflocki.github.com: invalid monitorIndex: " + monitorIndex);
+            return;
+        }
+        //console.log("multi-monitor-login@derflocki.github.com: _dialog: " + _dialog);
         let children =  _dialog.get_children();
         [_dialog, ...children].forEach((child) => {
-            console.log("multi-monitor-login@derflocki.github.com: checking constraints: " + child);
+            //console.log("multi-monitor-login@derflocki.github.com: checking constraints: " + child);
             child.get_constraints().forEach((constraint) => {
-                //constraint: https://github.com/GNOME/gnome-shell/blob/main/js/ui/layout.js#L39
-                /** @type {ClutterConstraint}*/
-                //MonitorConstraint
-                //TODO: check for the "object instance wrapper GType:Gjs_ui_layout_MonitorConstraint jsobj@0x366081898588 native@0x5626ed2f6930"
-                console.log("multi-monitor-login@derflocki.github.com: ClutterConstraint: " + constraint);
-                constraint.index = monitor.index;
+                if(constraint instanceof Layout.MonitorConstraint) {
+                    //console.log("multi-monitor-login@derflocki.github.com: ClutterConstraint: " + constraint);
+                    constraint.index = monitorIndex;
+                }
             });
         });
+    }
+    _changed(settings, key) {
+        if(key == 'monitor-id') {
+            let newMonitor= settings.get_int('monitor-id');
+            console.log("New Monitor: " + newMonitor + " (old: " + this.lastMonitorIndex + ")");
+            this.updateActors(newMonitor);
+            this.lastMonitorIndex = newMonitor;
+        }
     }
 };
