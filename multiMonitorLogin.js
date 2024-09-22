@@ -96,12 +96,17 @@ const MultiMonitorLogin = class {
     updateActors(current, last) {
         console.log("multi-monitor-login@derflocki.github.com: New Monitor " + JSON.stringify(current));
 
+        let actor = this.findStyleClassRecursive(global.stage, ["unlock-dialog", "login-dialog"]);
+        if(!actor) {
+            return;
+        }
+        this.moveActor(actor, current);
         //The Lock screen
         //Main.screenShield: https://github.com/GNOME/gnome-shell/blob/main/js/ui/screenShield.js
-        if ((Main.screenShield && Main.screenShield._dialog)) {
-            //Main.screenShield._dialog: https://github.com/GNOME/gnome-shell/blob/main/js/ui/unlockDialog.js
-            this.moveActor(Main.screenShield._dialog, current)
-        }
+        //if ((Main.screenShield && Main.screenShield._dialog)) {
+        //    //Main.screenShield._dialog: https://github.com/GNOME/gnome-shell/blob/main/js/ui/unlockDialog.js
+        //    this.moveActor(Main.screenShield._dialog, current)
+        //}
         //styleClass: "unlock-dialog"
         //styleClass: "login-dialog"
         //global.stage
@@ -109,11 +114,26 @@ const MultiMonitorLogin = class {
 
     /**
      *
-     * @param {}Clutter.Actor} actor
+     * @param {}Clutter.Actor} rootActor
      * @param {array} styleClasses
      */
-    findStyleClassRecursive(actor, styleClasses) {
-        //if(actor.styleClass)
+    findStyleClassRecursive(rootActor, styleClasses) {
+        console.log("checking actor: " + rootActor);
+        console.log("checking actor.styleClass: " + rootActor.styleClass);
+        if(styleClasses.includes(rootActor.styleClass)) {
+            return rootActor;
+        }
+        let actor = null;
+        let children = rootActor.get_children();
+        console.log("checking actor.children.length: " + children.length);
+        for(let i=0; i < children.length; i++) {
+            console.log("checking child: " + i);
+            actor = this.findStyleClassRecursive(children[i], styleClasses);
+            if(actor) {
+                return actor;
+            }
+        }
+        return null;
     }
     moveActor(_dialog, monitor) {
         console.log("multi-monitor-login@derflocki.github.com: _dialog: " + Main.screenShield._dialog);
