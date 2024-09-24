@@ -22,7 +22,6 @@ export default class MultiMonitorLoginExtension extends Extension {
     constructor(metadata) {
         super(metadata);
         this.mml = new MultiMonitorLogin();
-        this.DesktopIconsUsableArea = null;
     }
     enable() {
         let settings = this.getSettings()

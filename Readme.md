@@ -1,4 +1,13 @@
-# Installation
+## Multi Monitor Login Fix
+
+In gnome-shell, the login and unlock dialogs are always placed on the primary monitor. This extension allows the user
+to move the dialogs.
+
+* The dialogs follow your mouse
+* `[Control]+a` moves the dialogs to the next monitor
+* `[Control]+{Number}` moves the dialog on a specific monitor.
+
+## Installation
 
 > These instructions have been tested on Ubuntu 24.04. 
 

@@ -1,4 +1,5 @@
 /* Add your custom extension styling here */
-#panel {
-    background-color: orange;
+.multi-mon-login-Info {
+    margin: 1em;
+    text-align: center;
 }
