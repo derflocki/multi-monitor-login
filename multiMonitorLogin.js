@@ -212,7 +212,6 @@ const MultiMonitorLogin = class {
         for(let i= 0; i < Main.layoutManager.monitors.length; i++) {
             let clone = new Clutter.Clone({source: promptActor});
             clone.add_constraint(new Layout.MonitorConstraint({index: i}));
-            clone.styleClass = 'multi-mon-login-Info';
             this.infos.push(clone);
             Main.uiGroup.add_child(clone);
             //let text = "The Login-Prompt will follow your mouse.\n\n"
