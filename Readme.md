@@ -1,7 +1,9 @@
 # Installation
 
+> These instructions have been tested on Ubuntu 24.04. 
+
 As of September 2024, to enable extensions for gdm:
-1. the extension **must** be installed in `/usr/local/share/gnome-shell/extensions/`
+1. the extension **must** be installed in `/usr/share/gnome-shell/extensions/` (depends on your distribution)
 2. it has to be enabled:
     ```bash
     sudo machinectl shell gdm@ /bin/bash
