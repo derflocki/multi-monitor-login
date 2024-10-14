@@ -1,24 +1,15 @@
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import Meta from 'gi://Meta';
 import Shell from 'gi://Shell';
-import St from 'gi://St';
+import GLib from 'gi://GLib';
 import Clutter from 'gi://Clutter';
 import {getPointerWatcher} from 'resource:///org/gnome/shell/ui/pointerWatcher.js';
 import * as Layout from 'resource:///org/gnome/shell/ui/layout.js';
 export {MultiMonitorLogin};
 
 const MultiMonitorLogin = class {
-    /**
-     * The complete Triforce, or one or more components of the Triforce.
-     * @typedef {Object} Monitor
-     * @property {int} index - Indicates whether the Wisdom component is present.
-     * @property {int} x - Indicates whether the Courage component is present.
-     * @property {int} y - Indicates whether the Power component is present.
-     * @property {int} width - Indicates whether the Wisdom component is present.
-     * @property {int} height - Indicates whether the Wisdom component is present.
-     * @property {int} geometry_scale - Indicates whether the Wisdom component is present.
-     */
-    /** @type {Monitor}*/
+    monitorsChangedSignalId = null;
+    /** @type {number}*/
     lastMonitorIndex = -1;
 
     //track Mouse
@@ -46,20 +37,32 @@ const MultiMonitorLogin = class {
     }
 
     enable(settings) {
-        console.log("multi-monitor-login@derflocki.github.com enable");
+
         settings.connect('changed', this._changed.bind(this))
         this.lastMonitorIndex = settings.get_int('monitor-id');
-        this.setupInfo(settings);
-        this.updateActors(this.lastMonitorIndex);
+        this.monitorsChangedSignalId = Main.layoutManager.connect('monitors-changed', this._monitors_changed.bind(this));
         this.setupMouseTracking(settings);
         this.setupKeybinding(settings);
-        console.log("multi-monitor-login@derflocki.github.com enable complete");
+
+        this._timeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 10,
+            () => {
+                console.log("Looking for actor...");
+
+                var a = this.findActor();
+                if(a !== null) {
+                    console.log("Found actor");
+                    this.setupInfo(settings);
+                    this.updateActors(this.lastMonitorIndex);
+                    return false;
+                }
+            });
     }
 
     /**
      * This extension moves the unlock dialog to the Monitor the user clicks
      */
     disable() {
+        Main.layoutManager.disconnect(this.monitorsChangedSignalId);
         console.log("multi-monitor-login@derflocki.github.com disable");
         //remove keyBindings
         Main.wm.removeKeybinding('monitor-shortcut-cycle');
@@ -75,9 +78,16 @@ const MultiMonitorLogin = class {
         this.infos.forEach((l) => {
             Main.uiGroup.remove_child(l);
         });
+        this.infos = [];
         this.actor = null;
         console.log("multi-monitor-login@derflocki.github.com disable complete");
     }
+    _monitors_changed() {
+        console.log("_monitors_changed");
+        this.setupInfo();
+        this.updateActors(this.lastMonitorIndex);
+    }
+
     setupMouseTracking(settings) {
         let pointerWatcher = getPointerWatcher();
         this.pointerWatcherRef = pointerWatcher.addWatch(100, (x, y) => {
@@ -160,7 +170,7 @@ const MultiMonitorLogin = class {
 
     /**
      *
-     * @param {}Clutter.Actor} rootActor
+     * @param {Clutter.Actor} rootActor
      * @param {array} styleClasses
      */
     findStyleClassRecursive(rootActor, styleClasses) {
@@ -204,31 +214,20 @@ const MultiMonitorLogin = class {
         }
     }
 
-    setupInfo(settings) {
+    setupInfo() {
         let promptActor = this.findActor();
         if(!promptActor) {
             return;
         }
         for(let i= 0; i < Main.layoutManager.monitors.length; i++) {
+            //info already setup
+            if(this.infos[i]) {
+                continue;
+            }
             let clone = new Clutter.Clone({source: promptActor});
             clone.add_constraint(new Layout.MonitorConstraint({index: i}));
-            this.infos.push(clone);
+            this.infos[i] = clone;
             Main.uiGroup.add_child(clone);
-            //let text = "The Login-Prompt will follow your mouse.\n\n"
-            //    + "Press <span foreground='white' font='monospace' weight='bold'>Ctrl+a</span> to move it to the next monitor.\n"
-            //    + "Press <span foreground='white' font='monospace' weight='bold'>Ctrl+" + (i+1) +"</span> to switch to this monitor.\n"
-            //;
-            //let label = new St.Label({
-            //    style_class: 'multi-mon-login-Info',
-            //    x_align: Clutter.ActorAlign.CENTER,
-            //    y_align: Clutter.ActorAlign.CENTER,
-            //    x_expand: true,
-            //    y_expand: true,
-            //});
-            //label.clutter_text.set_markup(text);
-            //label.add_constraint(new Layout.MonitorConstraint({index: i}));
-            //this.infos.push(label);
-            //Main.uiGroup.add_child(label);
         }
     }
 };

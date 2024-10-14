@@ -17,15 +17,16 @@
  */
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 import {MultiMonitorLogin} from "./multiMonitorLogin.js";
-
 export default class MultiMonitorLoginExtension extends Extension {
     constructor(metadata) {
         super(metadata);
         this.mml = new MultiMonitorLogin();
     }
     enable() {
+        console.log("multi-monitor-login@derflocki.github.com enable");
         let settings = this.getSettings()
         this.mml.enable(settings);
+        console.log("multi-monitor-login@derflocki.github.com enable complete");
     }
 
     /**
