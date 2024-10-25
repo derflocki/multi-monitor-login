@@ -7,7 +7,8 @@
   ],
   "session-modes": [
     "gdm",
-    "unlock-dialog"
+    "unlock-dialog",
+    "user"
   ],
   "settings-schema": "org.gnome.shell.extensions.multi-monitor-login"
 }

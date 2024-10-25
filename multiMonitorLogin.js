@@ -5,6 +5,7 @@ import GLib from 'gi://GLib';
 import Clutter from 'gi://Clutter';
 import {getPointerWatcher} from 'resource:///org/gnome/shell/ui/pointerWatcher.js';
 import * as Layout from 'resource:///org/gnome/shell/ui/layout.js';
+import * as LoginManager from 'resource:///org/gnome/shell/misc/loginManager.js';
 export {MultiMonitorLogin};
 
 const MultiMonitorLogin = class {
@@ -18,6 +19,7 @@ const MultiMonitorLogin = class {
     //lastFoundActor
     actor = null;
     infos = [];
+    panelClones = [];
 
     /**
      *
@@ -37,24 +39,57 @@ const MultiMonitorLogin = class {
     }
 
     enable(settings) {
-
-        settings.connect('changed', this._changed.bind(this))
-        this.lastMonitorIndex = settings.get_int('monitor-id');
+        this.settings = settings;
+        //settings.connect('changed', this._changed.bind(this));
+        this.lastMonitorIndex = -1;
         this.monitorsChangedSignalId = Main.layoutManager.connect('monitors-changed', this._monitors_changed.bind(this));
         this.setupMouseTracking(settings);
-        this.setupKeybinding(settings);
 
-        this._timeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 10,
+        if(this.settings.get_boolean("clone-panel")) {
+            this.setupPanelClones();
+            let [x, y] = global.get_pointer();
+            let currentIndex = this.getMonitorAtPosition(x, y);
+            this.log(this.lastMonitorIndex + " - " + x + ", " + y + " @ " + currentIndex + " - initial");
+            this.updatePanelClones(currentIndex);
+        }
+
+        this.startLooking();
+    }
+
+    lock() {
+        this.log("Locked!")
+        this.startLooking();
+    }
+    startLooking() {
+        let countLooksRemaining = 10;
+        this._timeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 500,
             () => {
-                console.log("Looking for actor...");
-
-                var a = this.findActor();
-                if(a !== null) {
-                    console.log("Found actor");
-                    this.setupInfo(settings);
-                    this.updateActors(this.lastMonitorIndex);
-                    return false;
+                this.log("Looking for actor...");
+                if(this.actor) {
+                    //previous iteration found actor but is not properly setup yet
+                    return GLib.SOURCE_REMOVE;
                 }
+                this.actor = this.findActor();
+                if(this.actor !== null) {
+                    this.log("Found actor");
+                    this.destroyId = this.actor.connect('destroy', () => {
+                        this.actor = null;
+                        this.destroyId = null;
+                        this.removeInfos();
+                    });
+    
+                    this.setupInfo();
+                    this.updateActors(this.lastMonitorIndex);
+                    this.log("Stop Looking for actor...");
+                    return GLib.SOURCE_REMOVE;
+                }
+                countLooksRemaining--;
+                this.log("Remaining iterations :" + countLooksRemaining);
+                if(countLooksRemaining < 0) {
+                    this.log("Stop Looking for actor...");
+                    return GLib.SOURCE_REMOVE;
+                }
+                return GLib.SOURCE_CONTINUE;
             });
     }
 
@@ -63,28 +98,43 @@ const MultiMonitorLogin = class {
      */
     disable() {
         Main.layoutManager.disconnect(this.monitorsChangedSignalId);
-        console.log("multi-monitor-login@derflocki.github.com disable");
-        //remove keyBindings
-        Main.wm.removeKeybinding('monitor-shortcut-cycle');
-        for(let i= 1; i < 10; i++) {
-            Main.wm.removeKeybinding('monitor-shortcut-' + i);
-        }
+        this.log("disable");
 
         //stop Tracking the mouse
         if (this.pointerWatcherRef) {
             this.pointerWatcherRef.remove();
         }
+        this.removeInfos();
+        this.removePanelClones();
+        if(this.destroyId) {
+            this.actor.disconnect(this.destroyId);
+        }
+        this.actor = null;
+        this.log("disable complete");
+    }
+
+    removePanelClones() {
+        this.panelClones.forEach((panelBox) => {
+            Main.layoutManager.removeChrome(panelBox);
+        })
+        this.panelClones = [];
+    }
+
+    removeInfos() {
         //remove the Info Labels
         this.infos.forEach((l) => {
             Main.uiGroup.remove_child(l);
         });
         this.infos = [];
-        this.actor = null;
-        console.log("multi-monitor-login@derflocki.github.com disable complete");
     }
+
     _monitors_changed() {
-        console.log("_monitors_changed");
+        this.log("_monitors_changed");
         this.setupInfo();
+        if (this.settings.get_boolean("clone-panel")) {
+            this.setupPanelClones();
+            this.updatePanelClones(this.lastMonitorIndex)
+        }
         this.updateActors(this.lastMonitorIndex);
     }
 
@@ -92,40 +142,20 @@ const MultiMonitorLogin = class {
         let pointerWatcher = getPointerWatcher();
         this.pointerWatcherRef = pointerWatcher.addWatch(100, (x, y) => {
             let currentIndex = this.getMonitorAtPosition(x, y);
-            //are we on another monitor?
-            if (
-                (currentIndex === this.lastMonitorIndex) || (currentIndex === -1)
-            ) {
+            //this.log(this.lastMonitorIndex + " - " + x + ", " + y + " @ " + currentIndex);
+            if(currentIndex == -1) {
                 return;
             }
-            settings.set_int('monitor-id', currentIndex);
+            //are we on another monitor?
+            if (
+                (currentIndex !== this.lastMonitorIndex)
+            ) {
+                this.log("Trigger monitor-id change");
+                settings.set_int('monitor-id', currentIndex);
+                this._changed(this.settings, 'monitor-id');
+            }
         });
     }
-
-    setupKeybinding(settings) {
-        //add the cycle keybinding
-        Main.wm.addKeybinding('monitor-shortcut-cycle',
-            settings,
-            Meta.KeyBindingFlags.IGNORE_AUTOREPEAT,
-            Shell.ActionMode.ALL,
-            () => {
-                let nextMonitor = (this.lastMonitorIndex + 1) % Main.layoutManager.monitors.length;
-                //console.log("multi-monitor-login@derflocki.github.com: currentMonitor: " + this.lastMonitorIndex);
-                //console.log("multi-monitor-login@derflocki.github.com: nextMonitor: " + nextMonitor);
-                settings.set_int('monitor-id', nextMonitor);
-            }
-        );
-        for(let i= 1; i < 10; i++) {
-            //console.log("multi-monitor-login@derflocki.github.com: 'monitor-shortcut-" + i + "'");
-            Main.wm.addKeybinding('monitor-shortcut-' + i,
-                settings,
-                Meta.KeyBindingFlags.IGNORE_AUTOREPEAT,
-                Shell.ActionMode.ALL,
-                () => settings.set_int('monitor-id', i-1)
-            );
-        }
-    }
-
 
     /**
      * Move the relevant Actors on the current screen
@@ -133,39 +163,36 @@ const MultiMonitorLogin = class {
      * @param {Monitor} last - The author of the book.
      */
     updateActors(monitorIndex) {
-        if(this.infos.length == 0) {
+        if (this.infos.length == 0) {
             this.setupInfo();
         }
-        if(this.infos.length != 0) {
+        if (this.infos[this.lastMonitorIndex]) {
             this.infos[this.lastMonitorIndex].show();
             this.infos[monitorIndex].hide();
         }
-        let actor = this.findActor();
-        if(!actor) {
-            return;
+        if (this.actor) {
+            this.moveActor(this.actor, monitorIndex);
+        } else {
+            this.log("ERROR: got no actor to move")
         }
-        this.moveActor(actor, monitorIndex);
     }
     findActor() {
-        if(this.actor === null) {
-            console.log("looking for actor: [\"unlock-dialog\", \"login-dialog\"] in " + global.stage);
-            let actor = this.findStyleClassRecursive(global.stage, ["unlock-dialog", "login-dialog"]);
-            if (!actor) {
-                return null;
-            }
-            let final = [actor, ...actor.get_children()].filter((child) => {
-                //console.log("multi-monitor-login@derflocki.github.com: checking constraints: " + child);
-                if(child.styleClass === "multi-mon-login-Info") {
-                    return false;
-                }
-                return child.get_constraints().some((constraint) => {
-                    return(constraint instanceof Layout.MonitorConstraint);
-                });
-            });
-            console.log("got an actor: " + final[0]);
-            this.actor = final[0];
+        this.log("looking for actor: [\"unlock-dialog\", \"login-dialog\"] in " + global.stage);
+        let actor = this.findStyleClassRecursive(global.stage, ["unlock-dialog", "login-dialog"]);
+        if (!actor) {
+            return null;
         }
-        return this.actor;
+        let final = [actor, ...actor.get_children()].filter((child) => {
+            //this.log("multi checking constraints: " + child);
+            if(child.styleClass === "multi-mon-login-Info") {
+                return false;
+            }
+            return child.get_constraints().some((constraint) => {
+                return(constraint instanceof Layout.MonitorConstraint);
+            });
+        });
+        this.log("got an actor: " + final[0]);
+        return final[0];
     }
 
     /**
@@ -174,16 +201,16 @@ const MultiMonitorLogin = class {
      * @param {array} styleClasses
      */
     findStyleClassRecursive(rootActor, styleClasses) {
-        //console.log("checking actor: " + rootActor);
-        //console.log("checking actor.styleClass: " + rootActor.styleClass);
+        //this.log("checking actor: " + rootActor);
+        //this.log("checking actor.styleClass: " + rootActor.styleClass);
         if(styleClasses.includes(rootActor.styleClass)) {
             return rootActor;
         }
         let actor = null;
         let children = rootActor.get_children();
-        //console.log("checking actor.children.length: " + children.length);
+        //this.log("checking actor.children.length: " + children.length);
         for(let i=0; i < children.length; i++) {
-            //console.log("checking child: " + i);
+            //this.log("checking child: " + i);
             actor = this.findStyleClassRecursive(children[i], styleClasses);
             if(actor) {
                 return actor;
@@ -193,30 +220,97 @@ const MultiMonitorLogin = class {
     }
     moveActor(_dialog, monitorIndex) {
         if((monitorIndex >= Main.layoutManager.monitors.length) || (monitorIndex < 0)) {
-            console.log("multi-monitor-login@derflocki.github.com: invalid monitorIndex: " + monitorIndex);
+            this.log("multi invalid monitorIndex: " + monitorIndex);
             return;
         }
-        //console.log("multi-monitor-login@derflocki.github.com: _dialog: " + _dialog);
-        let children =  _dialog.get_children();
+        this.log("multi _dialog: " + _dialog);
+        let children = _dialog.get_children();
         _dialog.get_constraints().forEach((constraint) => {
             if(constraint instanceof Layout.MonitorConstraint) {
-                //console.log("multi-monitor-login@derflocki.github.com: ClutterConstraint: " + constraint);
+                //this.log("multi ClutterConstraint: " + constraint);
                 constraint.index = monitorIndex;
             }
         });
     }
     _changed(settings, key) {
+        this.log("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - changed settings")
         if(key == 'monitor-id') {
-            let newMonitor= settings.get_int('monitor-id');
-            console.log("New Monitor: " + newMonitor + " (old: " + this.lastMonitorIndex + ")");
+            let newMonitor= this.settings.get_int('monitor-id');
+            this.log("New Monitor: " + newMonitor + " (old: " + this.lastMonitorIndex + ")");
+            if(this.settings.get_boolean("clone-panel")) {
+                this.updatePanelClones(newMonitor);
+            }
             this.updateActors(newMonitor);
             this.lastMonitorIndex = newMonitor;
         }
     }
+    log(message) {
+        console.log("multi-monitor-login@derflocki.github.com: " + message);
+    }
+    setupPanelClones() {
+        this.log("setupPanelClones");
+        for(let i= 0; i < Main.layoutManager.monitors.length; i++) {
+            let panelBox = null;
+            let monitor = Main.layoutManager.monitors[i];
+            if(this.panelClones[i]) {
+                panelBox = this.panelClones[i];
+            } else {
+                panelBox = new Clutter.Clone({
+                    source: Main.layoutManager.panelBox,
+                    reactive: true}
+                );
+                this.panelClones[i] = panelBox;
+                Main.layoutManager.addChrome(panelBox, {
+                    affectsStruts: true,
+                    trackFullscreen: true
+                });
+            }
+            panelBox.set_position(monitor.x, monitor.y);
+            panelBox.set_size(monitor.width, -1);
+        }
+    }
+    updatePanelClones(monitorIndex) {
+        this.log("updatePanelClones to monitor " + monitorIndex);
+        //move the actual panel to the current screen
+        for(let i = 0; i < Main.layoutManager.monitors.length; i++) {
+            let monitor = Main.layoutManager.monitors[i];
+            let panelClone = this.panelClones[i];
+            if(!panelClone) {
+                continue;
+            }
+            let cloneHasParent = !!panelClone.get_parent();
+            //we are processing the new "primary screen"
+            if(i == monitorIndex) {
+                this.log('we are processing the new "primary" screen:'  + i );
+                //hide the panelBox
+                this.log("hide clone since it is on the primary monitor:" + i);
+                if(cloneHasParent) {
+                    Main.layoutManager.removeChrome(panelClone);
+                }
 
+                //"move" the actual panel to this monitor
+                Main.layoutManager.panelBox.set_position(monitor.x, monitor.y);
+                //TODO: maybe don't enlarge. If you have a big difference in screen sizes it look ugly
+                Main.layoutManager.panelBox.set_size(monitor.width, -1);
+                if(monitor.inFullscreen) {
+                    Main.layoutManager.panelBox.hide();
+                } else {
+                    Main.layoutManager.panelBox.show();
+                }
+            }
+            if(i !== monitorIndex) {
+                this.log("show clone since it is on a non primary monitor:" + i);
+                if(!cloneHasParent) {
+                    Main.layoutManager.addChrome(panelClone, {
+                        affectsStruts: true,
+                        trackFullscreen: true
+                    });
+                }
+            }
+        }
+    }
     setupInfo() {
-        let promptActor = this.findActor();
-        if(!promptActor) {
+        if(!this.actor) {
             return;
         }
         for(let i= 0; i < Main.layoutManager.monitors.length; i++) {
@@ -224,7 +318,8 @@ const MultiMonitorLogin = class {
             if(this.infos[i]) {
                 continue;
             }
-            let clone = new Clutter.Clone({source: promptActor});
+            this.log("Creating Clone for " + i);
+            let clone = new Clutter.Clone({source: this.actor});
             clone.add_constraint(new Layout.MonitorConstraint({index: i}));
             this.infos[i] = clone;
             Main.uiGroup.add_child(clone);
