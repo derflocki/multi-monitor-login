@@ -53,7 +53,19 @@ const MultiMonitorLogin = class {
             this.updatePanelClones(currentIndex);
         }
 
-        this.startLooking();
+        Main.sessionMode.connect('updated', () => this._sessionUpdated());
+        this._sessionUpdated();
+    }
+
+    /**
+     * Tracks the state of the session, sessionMode.isLocked, sessionMode.isGreeter
+     * @private
+     */
+    _sessionUpdated() {
+        //if we are in greeter mode or the session is locked, search for the relevant actor to clone
+        if(Main.sessionMode.isLocked || Main.sessionMode.isGreeter) {
+            this.startLooking();
+        }
     }
 
     lock() {
