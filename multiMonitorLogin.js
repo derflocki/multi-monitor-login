@@ -21,6 +21,9 @@ const MultiMonitorLogin = class {
     infos = [];
     panelClones = [];
 
+    /** @type {number}*/
+    suspendListenerId= undefined;
+
     /**
      *
      * @param {number} mouse_x
@@ -38,13 +41,7 @@ const MultiMonitorLogin = class {
         return -1;
     }
 
-    enable(settings) {
-        this.settings = settings;
-        //settings.connect('changed', this._changed.bind(this));
-        this.lastMonitorIndex = -1;
-        this.monitorsChangedSignalId = Main.layoutManager.connect('monitors-changed', this._monitors_changed.bind(this));
-        this.setupMouseTracking(settings);
-
+    reinitPanel() {
         if(this.settings.get_boolean("clone-panel")) {
             this.setupPanelClones();
             let [x, y] = global.get_pointer();
@@ -52,7 +49,23 @@ const MultiMonitorLogin = class {
             this.log(this.lastMonitorIndex + " - " + x + ", " + y + " @ " + currentIndex + " - initial");
             this.updatePanelClones(currentIndex);
         }
+    }
+    enable(settings) {
+        this.settings = settings;
+        //settings.connect('changed', this._changed.bind(this));
+        this.lastMonitorIndex = -1;
+        this.monitorsChangedSignalId = Main.layoutManager.connect('monitors-changed', this._monitors_changed.bind(this));
+        this.setupMouseTracking(settings);
 
+        let loginManager = LoginManager.getLoginManager();
+        // Connect to the 'prepare-for-sleep' signal
+        this.suspendListenerId = loginManager.connect('prepare-for-sleep', (loginManager, aboutToSuspend) => {
+            if (aboutToSuspend == false) {
+                // The system has just resumed from suspend
+                this.reinitPanel();
+            }
+        });
+        this.reinitPanel();
         Main.sessionMode.connect('updated', () => this._sessionUpdated());
         this._sessionUpdated();
     }
@@ -122,6 +135,11 @@ const MultiMonitorLogin = class {
             this.actor.disconnect(this.destroyId);
         }
         this.actor = null;
+        // Disconnect our signal listener
+        if (this.suspendListenerId !== undefined) {
+            loginManager.disconnect(suspendListenerId);
+            this.suspendListenerId = undefined;
+        }
         this.log("disable complete");
     }
 
@@ -185,7 +203,7 @@ const MultiMonitorLogin = class {
         if (this.actor) {
             this.moveActor(this.actor, monitorIndex);
         } else {
-            this.log("ERROR: got no actor to move")
+            this.log("got no actor to move")
         }
     }
     findActor() {
@@ -257,7 +275,7 @@ const MultiMonitorLogin = class {
         }
     }
     log(message) {
-        console.log("multi-monitor-login@derflocki.github.com: " + message);
+		//console.log("multi-monitor-login@derflocki.github.com: " + message);
     }
     setupPanelClones() {
         this.log("setupPanelClones");
@@ -292,11 +310,11 @@ const MultiMonitorLogin = class {
             }
             let cloneHasParent = !!panelClone.get_parent();
             //we are processing the new "primary screen"
-            if(i == monitorIndex) {
+            if(i === monitorIndex) {
                 this.log('we are processing the new "primary" screen:'  + i );
                 //hide the panelBox
-                this.log("hide clone since it is on the primary monitor:" + i);
                 if(cloneHasParent) {
+					this.log("hide clone since it is on the primary monitor:" + i);
                     Main.layoutManager.removeChrome(panelClone);
                 }
 
@@ -309,8 +327,7 @@ const MultiMonitorLogin = class {
                 } else {
                     Main.layoutManager.panelBox.show();
                 }
-            }
-            if(i !== monitorIndex) {
+            } else {
                 this.log("show clone since it is on a non primary monitor:" + i);
                 if(!cloneHasParent) {
                     Main.layoutManager.addChrome(panelClone, {
