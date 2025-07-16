@@ -1,10 +1,10 @@
 ## Multi Monitor Login and Top-Panel Fix
 
-In gnome-shell, the login&unlock dialogs and the top-panel are always placed on the primary monitor. This extension moves the UI to the monitor the mouse is currently on **and** adds a visual clone on the other monitors.
+Show lockscreen & loginscreen and the top-panel on all monitors. 
 
 ## See it in action
 
-![multi-monitor-login](https://github.com/user-attachments/assets/8e2f1e40-2062-45f5-8463-5ef16aee2e30)
+![multi-monitor-login](https://github.com/user-attachments/assets/0e9b05d9-7032-43b9-bf73-9479fac064f5)
 
 ## Installation
 
@@ -18,10 +18,13 @@ As of September 2024, to enable extensions for gdm:
     dconf reset -f /
     gsettings set org.gnome.shell enabled-extensions "['multi-monitor-login@derflocki.github.com']"
     ```
-
 ## Known Problems
 
 **Sometimes** when the monitors change while the computer is suspended (e.g when removing from the dock) the cloned top-bar stays visible over the 
+
+## How it works
+
+The extension tracks the mouse cursor and moves the UI elements to the "current monitor". Clones are placed on the the other monitors.
 
 ## Acknowledgement
 
