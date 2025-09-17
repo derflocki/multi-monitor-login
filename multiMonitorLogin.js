@@ -151,8 +151,8 @@ const MultiMonitorLogin = class {
     }
 
     removePanelClones() {
-        this.panelClones.forEach((panelBox) => {
-            Main.layoutManager.removeChrome(panelBox);
+        this.panelClones.forEach((panelClone) => {
+            Main.layoutManager.removeChrome(panelClone);
         })
         this.panelClones = [];
     }
@@ -286,30 +286,30 @@ const MultiMonitorLogin = class {
     }
 
     log(message) {
-        //console.log("multi-monitor-login@derflocki.github.com: " + message);
+        console.log("multi-monitor-login@derflocki.github.com: " + message);
     }
 
     setupPanelClones() {
         this.log("setupPanelClones");
         for (let i = 0; i < Main.layoutManager.monitors.length; i++) {
-            let panelBox = null;
+            let panelClone = null;
             let monitor = Main.layoutManager.monitors[i];
             if (this.panelClones[i]) {
-                panelBox = this.panelClones[i];
+                panelClone = this.panelClones[i];
             } else {
-                panelBox = new Clutter.Clone({
+                panelClone = new Clutter.Clone({
                         source: Main.layoutManager.panelBox,
                         reactive: true
                     }
                 );
-                this.panelClones[i] = panelBox;
-                Main.layoutManager.addChrome(panelBox, {
+                this.panelClones[i] = panelClone;
+                Main.layoutManager.addChrome(panelClone, {
                     affectsStruts: true,
                     trackFullscreen: true
                 });
             }
-            panelBox.set_position(monitor.x, monitor.y);
-            panelBox.set_size(monitor.width, -1);
+            panelClone.set_position(monitor.x, monitor.y);
+            panelClone.set_size(monitor.width, -1);
         }
     }
 
@@ -320,13 +320,14 @@ const MultiMonitorLogin = class {
             let monitor = Main.layoutManager.monitors[i];
             let panelClone = this.panelClones[i];
             if (!panelClone) {
+                this.log("there is no clone for monitor " + i);
                 continue;
             }
             let cloneHasParent = !!panelClone.get_parent();
             //we are processing the new "primary screen"
             if (i === monitorIndex) {
                 this.log('we are processing the new "primary" screen:' + i);
-                //hide the panelBox
+                //hide the panelClone
                 if (cloneHasParent) {
                     this.log("hide clone since it is on the primary monitor:" + i);
                     Main.layoutManager.removeChrome(panelClone);
@@ -350,6 +351,18 @@ const MultiMonitorLogin = class {
                     });
                 }
             }
+        }
+        if (this.panelClones.length > Main.layoutManager.monitors.length) {
+            this.log("There are more clones than monitors");
+            //we habe more panel clones than monitors
+            //remove them from the stage
+            for (let i = Main.layoutManager.monitors.length; i < this.panelClones.length; i++) {
+                let panelClone = this.panelClones[i];
+                Main.layoutManager.removeChrome(panelClone);
+                this.panelClones[i] = null;
+            }
+            //reduce the array to the number of monitors
+            this.panelClones = this.panelClones.slice(0, Main.layoutManager.monitors.length)
         }
     }
 
